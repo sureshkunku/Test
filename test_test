@@ -1,0 +1,118 @@
+import pytest
+from unittest.mock import Mock, patch
+from your_module import (read_ds_excel, qual_excl_read, create_message, mail_sending, create_email_body,
+                        send_email_stmp, send_email_api)
+
+@pytest.fixture
+def mock_pandas_read_excel():
+    with patch("pandas.read_excel") as mock_read_excel:
+        yield mock_read_excel
+
+def test_read_ds_excel(mock_pandas_read_excel):
+    mock_wb = Mock()
+    mock_pandas_read_excel.return_value = mock_wb
+
+    company_to_mail_dict, mail_id_to_board, mail_to_company_dict, message_list = read_ds_excel(mock_wb, "Primary", [])
+    assert isinstance(company_to_mail_dict, dict)
+    assert isinstance(mail_id_to_board, dict)
+    assert isinstance(mail_to_company_dict, dict)
+    assert isinstance(message_list, list)
+
+def test_qual_excl_read(mock_pandas_read_excel):
+    mock_wb = Mock()
+    mock_pandas_read_excel.return_value = mock_wb
+
+    company_to_mail_dict = {"company_id": ["mail_id"]}
+    mail_id_to_board = {"mail_id": "board"}
+    mail_to_company_dict = {"mail_id": "company_id"}
+    qual_comp_id_dup_dict = {"company_id": False}
+    request = Mock()
+    row = {"to_email": ["mail_id"], "subject": "Subject", "mail_content": "Mail Body",
+           "from_send": "from@mail.com", "files": [], "links": []}
+
+    result = qual_excl_read(company_to_mail_dict, mock_wb, "Primary", [], mail_id_to_board, mail_to_company_dict,
+                            "Primary", qual_comp_id_dup_dict, request, "Subject", "Template", [])
+    assert isinstance(result, list)
+
+def test_create_message():
+    email_recipient = ["to@mail.com"]
+    email_subject = "Subject"
+    email_message = "Message"
+    from_send = "from@mail.com"
+    attachment_location = []
+
+    result = create_message(email_recipient, email_subject, email_message, from_send, attachment_location, toggle=False)
+    assert result is True
+
+@pytest.fixture
+def mock_smtplib_SMTP():
+    with patch("smtplib.SMTP") as mock_smtp:
+        mock_smtp.return_value.__enter__.return_value = mock_smtp
+        mock_smtp.sendmail.return_value = {}
+        yield mock_smtp
+
+def test_send_email_stmp(mock_smtplib_SMTP):
+    msg = Mock()
+    result = send_email_stmp(msg)
+    assert result is True
+
+@pytest.fixture
+def mock_mail_sender():
+    with patch("your_module.MailSender") as mock_mail_sender:
+        mock_mail_sender.return_value.send_email.return_value = True
+        yield mock_mail_sender
+
+def test_send_email_api(mock_mail_sender):
+    email_recipient = ["to@mail.com"]
+    email_subject = "Subject"
+    email_message = "Message"
+    from_send = "from@mail.com"
+    attachment_location = []
+
+    result = send_email_api(email_recipient, email_subject, email_message, from_send, attachment_location, toggle=False)
+    assert result is True
+
+def test_create_email_body():
+    row = {
+        "to_email": ["to@mail.com"],
+        "subject": "Subject",
+        "mail_content": "Mail Body",
+        "from_send": "from@mail.com",
+        "files": [],
+        "links": [{"link_column_1": "link_value_1", "link_column_2": "link_value_2"}]
+    }
+    expected_result = (
+        "Hi To,<br><br>Mail Body<br>"
+        "<table border=\"1\" class=\"dataframe\">"
+        "<thead><tr style=\"text-align: right;\">"
+        "<th>link_column_1</th>"
+        "<th>link_column_2</th></tr></thead>"
+        "<tbody><tr><td>link_value_1</td><td>link_value_2</td></tr></tbody></table><br>"
+        "Thanks,<br>From"
+    )
+
+    result = create_email_body(row)
+    assert result == expected_result
+
+def test_mail_sending(mock_mail_sender):
+    # ... (existing test code)
+
+def test_send_email_stmp_failure():
+    msg = Mock()
+    mock_smtp = Mock()
+    mock_smtp.sendmail.side_effect = Exception("SMTP error")
+    msg.attach.side_effect = mock_smtp.sendmail
+
+    result = send_email_stmp(msg)
+    assert result is False
+
+def test_send_email_api_failure(mock_mail_sender):
+    mock_mail_sender.return_value.send_email.return_value = False
+    email_recipient = ["to@mail.com"]
+    email_subject = "Subject"
+    email_message = "Message"
+    from_send = "from@mail.com"
+    attachment_location = []
+
+    result = send_email_api(email_recipient, email_subject, email_message, from_send, attachment_location, toggle=False)
+    assert result is False
