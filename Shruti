@@ -1,0 +1,8 @@
+    for (const key in data) {
+        if (data.hasOwnProperty(key)) {
+            // Loop through values array
+            for (const value of data[key]) {
+                tableHTML += `<tr><td>${key}</td><td>${value}</td></tr>`;
+            }
+        }
+    }
